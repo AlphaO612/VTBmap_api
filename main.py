@@ -1,21 +1,15 @@
-import datetime,codecs,json,os
-# from typing import Union
-# import json
-# from uuid import UUID
+import datetime, codecs, json, os, math
+from other import NumpyArrayEncoder
+from ML.busy_analysis import Prediction
 
-# from db import DBTypes
-from fastapi import FastAPI, HTTPException
+from pyairtable import *
+from flask import Flask
 
+API_KEY = os.getenv('API_KEY')
+TABLE_BASE_ID = os.getenv('TABLE_BASE_ID')
+TABLE_OFFICES = os.getenv('TABLE_OFFICES')
 
-
-app = FastAPI()
-#
-# database = DBTypes.DB(host=env_data["settings"]["db"]["host"],
-#                       port=env_data["settings"]["db"]["port"],
-#                       name=env_data["settings"]["db"]["name"],
-#                       user=env_data["settings"]["db"]["users"]["web"]["login"],
-#                       password=env_data["settings"]["db"]["users"]["web"]["password"])
-# database.connect()
+app = Flask(__name__)
 #
 # answer = {
 #     "status": False,  # true - всё нормально, false - ошибка
@@ -23,22 +17,33 @@ app = FastAPI()
 #
 #     }
 # }
-#
-# def verifyToUse(auth_token: str, secret_key: int = None, immortal: bool = False):
-#     _ = database.getRowsTable("tokenizer", token=auth_token, key=secret_key, immortal=immortal)
-#     result = bool(_)
-#     if result and _[0][6] is not None: result = _[0][6] > datetime.datetime.now(_[0][6].tzinfo)
-#     if not result: database.delete("tokenizer", id_token=_[0][0])
-#     return result
-#
+def get_stats(table: Table, **kwargs) -> list[tuple[str, str, str]]:
+    result_data: list[tuple[str]] = []
+    for i in table.iterate(**kwargs):
+        for a in i:
+            result_data.append(a['fields'])
+    return result_data
 
-@app.get("/test")
-async def system(id_app: int, secret_key: str, login: str, password: str):
-    return dict(success=True)
+@app.get("/getOffices")
+def system(detail: bool = False):
+    result = []
+    for columns in Api(API_KEY).table(TABLE_BASE_ID, TABLE_OFFICES).all():
+        result.append({
+        i:columns['fields'][i] if i!="pointin" else list(map(float,columns['fields'][i][1:-1].split(",")))
+        for i in {
+            True: "id, name, address, pointIn, lpOpenHours, individualOpenHours, rko, salePointFormat, "
+                  "suoAvailability, hasRamp, metroStation, kep",
+            False: "name, address, pointin"
+        }[detail].split(", ")
+    })
+    return json.dumps(dict(data=result), ensure_ascii=False)
 
+@app.route('/prediction/<w>')
+def prediction(w):
+    p = Prediction()
+    data = {"load":p.getPredict(w)}
+    data = json.dumps(data, cls=NumpyArrayEncoder)
+    return data
 
-# if __name__ == "__main__":
-#     try: main()
-#     finally:
-#         database.mydb.commit()
-#         database.mydb.close()
+if __name__ == "__main__":
+    app.run("0.0.0.0", port=5000)

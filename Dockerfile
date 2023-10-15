@@ -1,14 +1,14 @@
-FROM python:3.9
+FROM python:3.10
 
 WORKDIR /code
 
 COPY ./backend/api/requirements.txt /code/requirements.txt
-COPY ./libs /code/
+COPY ./backend/api/ /code/
 
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-#
-COPY ./main.py /code/
+USER 1001
 
-#
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+ENTRYPOINT ["python3"]
+
+CMD ["main.py"]
